@@ -7,37 +7,40 @@ import time
 from function import get_user_wallet_balance, send_message
 
 def log_balance_history_to_json(balance, pnl, json_path="crypto_portfolio_optimization_balance_history_report.json"):
-    # Tạo đường dẫn nếu chưa tồn tại
-    path = Path(json_path)
-    if not path.exists():
-        path.write_text("[]")  # Tạo file rỗng dạng list JSON nếu chưa có
+    try:
+        # Tạo đường dẫn nếu chưa tồn tại
+        path = Path(json_path)
+        if not path.exists():
+            path.write_text("[]")  # Tạo file rỗng dạng list JSON nếu chưa có
 
-    # Tải dữ liệu hiện có
-    with path.open("r", encoding="utf-8") as f:
-        data = json.load(f)
+        # Tải dữ liệu hiện có
+        with path.open("r", encoding="utf-8") as f:
+            data = json.load(f)
 
-    # Tạo bản ghi mới
-    record = {
-        "Date": datetime.now(pytz.timezone("Asia/Ho_Chi_Minh")).strftime("%Y-%m-%d"),
-        "Equity (USDT)": round(balance, 2),
-        "Accumulated PnL (%)": round(pnl, 2)
-    }
+        # Tạo bản ghi mới
+        record = {
+            "Date": datetime.now(pytz.timezone("Asia/Ho_Chi_Minh")).strftime("%Y-%m-%d"),
+            "Equity (USDT)": round(balance, 2),
+            "Accumulated PnL (%)": round(pnl, 2)
+        }
 
-    # Thêm vào danh sách và ghi lại
-    data.append(record)
-    with path.open("w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
+        # Thêm vào danh sách và ghi lại
+        data.append(record)
+        with path.open("w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        print(f"Error logging balance history: {e}")
 
 def create_balance_message():
     initial_balance = 300
 
     try:
-        balances = get_user_wallet_balance(config.acc_binance_1)
+        balances = get_user_wallet_balance(config.acc_binance_2)
         if not balances:
             return "Error getting balance"
 
         # Tìm ví "Trading Bots"
-        trading_bot_balance = next((float(b["balance"]) for b in balances if b["walletName"] == "Trading Bots"), 0)
+        trading_bot_balance = next((float(b["balance"]) for b in balances if b["walletName"] == "Trading Bots"), None)
         if trading_bot_balance is None:
             return "Error getting balance"
         else:
@@ -68,7 +71,7 @@ if __name__ == "__main__":
             utc_now = datetime.now(pytz.timezone('Asia/Ho_Chi_Minh'))
             
             # Send update at 9:00 AM Vietnam time
-            if utc_now.hour == 11 and utc_now.minute == 44:
+            if utc_now.hour == 12 and utc_now.minute == 00:
                 send_balance_update()   
             # print("Balance update sent")
                 time.sleep(59)  # Sleep for 1 minute to avoid multiple sends
