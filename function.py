@@ -7,30 +7,24 @@ import hmac
 import math
 from datetime import datetime
 from urllib.parse import urlencode
-BASE_URL = "https://api.binance.com"
+BASE_URL = "https://fapi.binance.com"
 
 step_size = {
     'BTCUSDT': 0.00001
 }
-
 def round_quantity(quantity, step_size):
     """Rounds the quantity to the nearest step size multiple."""
     return math.floor(quantity / step_size) * step_size
-
 def generate_signature(acc,params):
     query_string = "&".join([f"{key}={value}" for key, value in params.items()])
     return hmac.new(acc['API_SECRET'].encode(), query_string.encode(), hashlib.sha256).hexdigest()
-
-def get_server_time():
-    res = requests.get("https://api.binance.com/api/v3/time")
-    return res.json()['serverTime']
 
 def get_user_wallet_balance(account, quote_asset="USDT"):
     api_key = account['API_KEY']
     api_secret = account['API_SECRET']
     base_url = "https://api.binance.com"
     endpoint = "/sapi/v1/asset/wallet/balance"
-    timestamp = get_server_time()
+    timestamp = int(time.time() * 1000)
 
     payload = {
         "quoteAsset": quote_asset,
@@ -64,7 +58,25 @@ def get_user_wallet_balance(account, quote_asset="USDT"):
         print(f"[ERROR] Status: {response.status_code}")
         print(f"[ERROR] Body: {response.text}")
         return None
-    
+
+def check_balance(acc):
+    try:
+        timestamp = int(time.time() * 1000)
+        params = {"timestamp": timestamp}
+        params["signature"] = generate_signature(acc,params)
+        url = f"{BASE_URL}/fapi/v2/account"
+        headers = {"X-MBX-APIKEY": acc['API_KEY']}
+        response = requests.get(url, headers=headers, params=params).json()
+        for asset in response['assets']:
+            if asset['asset'] == 'USDT':  # Get USDT futures balance
+                print(f"Futures Balance: {asset['availableBalance']}")
+                return float(asset['availableBalance'])
+        return None
+    except Exception as e:
+        print(f"Error checking balance: {e}")
+        return None
+
+
 def get_binance_precision(symbol):
     url = "https://api.binance.com/api/v3/exchangeInfo"
     response = requests.get(url)
@@ -77,9 +89,8 @@ def get_binance_precision(symbol):
                     print(f"Step size for {symbol}: {f['stepSize']}")
                     return float(f["stepSize"])
     return None  # Symbol not found or API error
-
 def new_trade_amount(acc,symbol,amount_usd):
-    url = f"{BASE_URL}/api/v1/ticker/price?symbol={symbol}"
+    url = f"{BASE_URL}/fapi/v1/ticker/price?symbol={symbol}"
     response = requests.get(url).json()
     price = float(response['price'])
     quantity = amount_usd / price
@@ -87,13 +98,14 @@ def new_trade_amount(acc,symbol,amount_usd):
     round_quantity = round(quantity/ step_size) * step_size
     return round_quantity
 
+
 def check_open_positions(acc,symbol):
     """ Fetch open futures positions. """
     try:
         timestamp = int(time.time() * 1000)
         params = {"timestamp": timestamp}
         params["signature"] = generate_signature(acc,params)
-        url = f"{BASE_URL}/api/v2/positionRisk"
+        url = f"{BASE_URL}/fapi/v2/positionRisk"
         headers = {"X-MBX-APIKEY": acc['API_KEY']}
         response = requests.get(url, headers=headers, params=params).json()
         open_positions = [pos for pos in response if float(pos['positionAmt']) != 0 and pos['symbol'] == symbol]
@@ -103,9 +115,8 @@ def check_open_positions(acc,symbol):
     except Exception as e:
         print(f"Error checking open positions: {e}")
         return None
-    
 def check_price(symbol):
-    url = f"{BASE_URL}/api/v1/ticker/price?symbol={symbol}"
+    url = f"{BASE_URL}/fapi/v1/ticker/price?symbol={symbol}"
     response = requests.get(url).json()
     price = float(response['price'])
     print(f'{symbol} {price}')
@@ -123,7 +134,7 @@ def place_future_order(acc,symbol, side, quantity):
             "timestamp": timestamp
         }
         order_data["signature"] = generate_signature(acc,order_data)
-        url = f"{BASE_URL}/api/v1/order"
+        url = f"{BASE_URL}/fapi/v1/order"
         headers = {"X-MBX-APIKEY": acc['API_KEY']}
         response = requests.post(url, headers=headers, params=order_data).json()
 
@@ -140,7 +151,7 @@ def check_open_positions(acc,symbol):
         timestamp = int(time.time() * 1000)
         params = {"timestamp": timestamp}
         params["signature"] = generate_signature(acc,params)
-        url = f"{BASE_URL}/api/v2/positionRisk"
+        url = f"{BASE_URL}/fapi/v2/positionRisk"
         headers = {"X-MBX-APIKEY": acc['API_KEY']}
         response = requests.get(url, headers=headers, params=params).json()
         
@@ -174,7 +185,7 @@ def set_leverage(acc,symbol: str, leverage: int):
 
     # Send request
     headers ={"X-MBX-APIKEY": acc['API_KEY']}
-    response = requests.post(f"{BASE_URL}/api/v1/leverage", params=params, headers=headers)
+    response = requests.post(f"{BASE_URL}/fapi/v1/leverage", params=params, headers=headers)
     print (response.json())
 
     return response.json() 
@@ -191,7 +202,7 @@ def check_leverage(acc: dict, symbol: str):
 
     # Send request
     headers = {"X-MBX-APIKEY": acc.get("API_KEY", "")}
-    response = requests.get(f"{BASE_URL}/api/v2/positionRisk", params=params, headers=headers)
+    response = requests.get(f"{BASE_URL}/fapi/v2/positionRisk", params=params, headers=headers)
 
     data = response.json()
 
@@ -204,7 +215,7 @@ def check_leverage(acc: dict, symbol: str):
         return {"error": data}
 
 def check_history(acc,symbol,start_time=None, end_time=None,limit=100):
-    url = f"{BASE_URL}/api/v1/allOrders"
+    url = f"{BASE_URL}/fapi/v1/allOrders"
     timestamp = int(time.time() * 1000)
     params = {
         "symbol": symbol,
@@ -238,7 +249,7 @@ def send_message(message,bot_token,chat_id):
     }
 
     response = requests.post(url, params=params)
-    # print(f"📤 Sent to Telegram {response}")  # Check response for errors
+    print(f"📤 Sent to Telegram {response}")  # Check response for errors
 
 
 
