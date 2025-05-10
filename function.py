@@ -25,49 +25,43 @@ def get_server_time():
     res = requests.get("https://api.binance.com/api/v3/time")
     return res.json()['serverTime']
 
-def check_balance(acc):
-    url = "https://api.binance.com/sapi/v3/asset/getUserAsset"
+def get_user_wallet_balance(account, quote_asset="USDT"):
+    api_key = account['API_KEY']
+    api_secret = account['API_SECRET']
+    base_url = "https://api.binance.com"
+    endpoint = "/sapi/v1/asset/wallet/balance"
     timestamp = get_server_time()
-    query_string = f"timestamp={timestamp}&needBtcValuation=true"
 
+    payload = {
+        "quoteAsset": quote_asset,
+        "timestamp": timestamp
+    }
+
+    # Sắp xếp tham số theo thứ tự keys để tạo chữ ký
+    query_string = "&".join([f"{key}={payload[key]}" for key in sorted(payload)])
     signature = hmac.new(
-        acc['API_SECRET'].encode('utf-8'),
-        query_string.encode('utf-8'),
+        api_secret.encode(),
+        query_string.encode(),
         hashlib.sha256
     ).hexdigest()
 
     headers = {
-        'X-MBX-APIKEY': acc['API_KEY']
+        "X-MBX-APIKEY": api_key,
+        "Content-Type": "application/x-www-form-urlencoded"
     }
 
-    full_url = f"{url}?{query_string}&signature={signature}"
-    response = requests.post(full_url, headers=headers)
+    url = f"{base_url}{endpoint}?{query_string}&signature={signature}"
+    response = requests.get(url, headers=headers)
 
     if response.status_code == 200:
         try:
-            # Giải mã bytes → JSON → Python list
-            if isinstance(response.content, bytes):
-                data = json.loads(response.content.decode('utf-8'))
-            else:
-                data = response.json()
-
-            # Chuyển số thành float và gom dữ liệu gọn
-            cleaned = []
-            for item in data:
-                total = float(item["free"]) + float(item.get("locked", 0))
-                cleaned.append({
-                    "asset": item["asset"],
-                    "free": float(item["free"]),
-                    "locked": float(item.get("locked", 0)),
-                    "total": total
-                })
-            return cleaned
-
+            data = response.json()
+            return data
         except Exception as e:
             print(f"[PARSE ERROR] {e}")
             return None
     else:
-        print(f"[ERROR] Status {response.status_code}")
+        print(f"[ERROR] Status: {response.status_code}")
         print(f"[ERROR] Body: {response.text}")
         return None
     
@@ -244,7 +238,7 @@ def send_message(message,bot_token,chat_id):
     }
 
     response = requests.post(url, params=params)
-    print(f"📤 Sent to Telegram {response}")  # Check response for errors
+    # print(f"📤 Sent to Telegram {response}")  # Check response for errors
 
 
 
