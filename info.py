@@ -45,7 +45,7 @@ def create_balance_message():
 
         # Ghi lại lịch sử vào file JSON
         log_balance_history_to_json(trading_bot_balance, accumulated_pnl)
-        
+
         # Tạo message báo cáo
         message = "*Strategy:* Crypto Portfolio Optimization\n"
         message += "*Account:* teamhn48\n"
@@ -68,13 +68,13 @@ if __name__ == "__main__":
             utc_now = datetime.now(pytz.timezone('Asia/Ho_Chi_Minh'))
             
             # Send update at 9:00 AM Vietnam time
-            # if utc_now.hour == 9 and utc_now.minute == 0:
-            send_balance_update()
+            if utc_now.hour == 11 and utc_now.minute == 44:
+                send_balance_update()   
             # print("Balance update sent")
-            time.sleep(1)  # Sleep for 1 minute to avoid multiple sends
-            # else:
-                # time.sleep(1)  # Check every 30 seconds
+                time.sleep(59)  # Sleep for 1 minute to avoid multiple sends
+            else:
+                time.sleep(59)  # Check every 30 seconds
                 
         except Exception as e:
             print(f"Error in main loop: {e}")
-            time.sleep(1)
+            time.sleep(5)
