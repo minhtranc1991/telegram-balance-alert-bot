@@ -23,7 +23,7 @@ def create_message(file_path,symbol): #update equity formula on March 9
     current_price = float(function.check_price(symbol))
     positions = function.check_open_positions(acc,symbol)    
     position_info = positions[0]
-    balance = function.check_balance(acc)
+    balance = function.check_balance_future(acc)
     unrealized_profit = round(float(position_info['unRealizedProfit']),2)
     amount = abs(float(position_info['positionAmt']))
     leverage = float(position_info['leverage'])
@@ -56,10 +56,6 @@ def create_message(file_path,symbol): #update equity formula on March 9
    
     return message
 
-def update_telegram(file_path = file_path):
-    message = create_message(file_path,symbol)
-    function.send_message(message, config.token,config.channel_strat_id)
-
 def log_balance_history_to_json(balance, pnl, json_path="crypto_portfolio_optimization_balance_history_report.json"):
     try:
         # Tạo đường dẫn nếu chưa tồn tại
@@ -86,7 +82,7 @@ def log_balance_history_to_json(balance, pnl, json_path="crypto_portfolio_optimi
     except Exception as e:
         print(f"Error logging balance history: {e}")
 
-def create_balance_message():
+def portfolioopt_balance_message():
     initial_balance = 300
 
     try:
@@ -94,39 +90,49 @@ def create_balance_message():
         if not balances:
             return "Error getting balance"
 
-        # Tìm ví "Trading Bots"
+        # Tìm Trading Bots balance
         trading_bot_balance = next((float(b["balance"]) for b in balances if b["walletName"] == "Trading Bots"), None)
         if trading_bot_balance is None:
-            return "Error getting balance"
+            return "Error getting Trading Bots balance"
         else:
             accumulated_pnl = round((trading_bot_balance / initial_balance - 1) * 100, 2)
+
+        # Tìm Spot balance
+        spot_balance = next((float(b["balance"]) for b in balances if b["walletName"] == "Spot"), None)
+        if spot_balance is None:
+            return "Error getting Spot balance"
 
         # Ghi lại lịch sử vào file JSON
         log_balance_history_to_json(trading_bot_balance, accumulated_pnl)
 
         # Tạo message báo cáo
-        message = "*Strategy:* Crypto Portfolio Optimization\n"
-        message += "*Account:* teamhn48\n"
+        message =  f"----------------------------------------\n"
+        message += f"*Strategy:* Crypto Portfolio Optimization\n"
+        message += f"*Account:* teamhn48\n"
         message += f"*Equity (USDT):* {trading_bot_balance:.2f} USDT\n"
         message += f"*Date:* {datetime.now(pytz.timezone('Asia/Ho_Chi_Minh')).strftime('%Y-%m-%d')}\n"
-        message += f"*Accumulated PnL (%):* {accumulated_pnl} %"
+        message += f"*Accumulated PnL (%):* {accumulated_pnl} %\n"
+        message += f"----------------------------------------\n"
+        message += f"*Spot Balance:* {spot_balance:.2f} USDT"
 
         return message
+
     except Exception as e:
         print(f"Error creating message: {e}")
         return "Error getting balance"
 
-def portfolioopt_balance_update():
-    message = create_balance_message()
-    function.send_message(message, config.token, config.channel_strat_id)    
-    
+def update_telegram(file_path = file_path):
+    message = create_message(file_path,symbol)
+    message += portfolioopt_balance_message()
+    function.send_message(message, config.token,config.channel_strat_id)
+
 if __name__ == "__main__":
     while True:
         try:
             utc_now = datetime.now(pytz.timezone('Asia/Ho_Chi_Minh'))
 
             if utc_now.hour == 8 and utc_now.minute == 59:
-
+            # if True:
                 with open ('report.json', 'r') as file:
                     data = json.load(file)
                     old_date = data[-1]['Date']
@@ -136,7 +142,6 @@ if __name__ == "__main__":
                 # print(f'Current date: {current_date}')
                 if current_date != old_date:
                     update_telegram()
-                    portfolioopt_balance_update()
                     # print('hey')
             else:
                 time.sleep(59)  # Sleep for 1 minute before checking again
